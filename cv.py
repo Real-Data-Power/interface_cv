@@ -1,26 +1,28 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import pyodbc
+import pymysql
 from adicionar import tela_adicionar_dados
 from alterar import tela_alterar_dados
 
 # Funções para interagir com o banco de dados
 def conectar_banco():
-    DB_CONFIG = {
-        "server": "DESKTOP-32TMBU8\\SQLEXPRESS",
-        "database": "ColabVirtual",
-        "username": "rdp",
-        "password": "rdp",
-    }
+    # Detalhes da conexão
+    server = '186.250.95.150'  # IP do servidor remoto
+    port = 3306  # Porta do MySQL no servidor
+    database = 'colabvirtual'
+    username = 'rdp'  # Ajuste de acordo com o seu usuário
+    password = 'Rdp@2024'  # Senha do MySQL
+
     try:
-        conn = pyodbc.connect(
-            f"DRIVER={{SQL Server}};"
-            f"SERVER={DB_CONFIG['server']};"
-            f"DATABASE={DB_CONFIG['database']};"
-            f"UID={DB_CONFIG['username']};"
-            f"PWD={DB_CONFIG['password']};"
+        # Criar conexão com o banco de dados MySQL
+        conexao = pymysql.connect(
+            host=server,
+            port=port,
+            user=username,
+            password=password,
+            database=database
         )
-        return conn
+        return conexao
     except Exception as e:
         messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados: {e}")
         return None
@@ -30,7 +32,7 @@ def listar_clientes():
     if conn is None:
         return []
     cursor = conn.cursor()
-    cursor.execute("SELECT C001_ID, C001_Nome FROM TB001_CLIENTES")
+    cursor.execute("SELECT C001_ID, C001_NOME FROM tb001_clientes")
     clientes = cursor.fetchall()
     conn.close()
     return clientes
@@ -40,7 +42,7 @@ def listar_processos():
     if conn is None:
         return []
     cursor = conn.cursor()
-    cursor.execute("SELECT C002_ID, C002_Nome, C002_Observacao FROM TB002_PROCESSOS")
+    cursor.execute("SELECT C002_ID, C002_Nome, C002_Observacao FROM tb002_processos")
     processos = cursor.fetchall()
     conn.close()
     return processos
@@ -50,19 +52,21 @@ def adicionar_processos(cliente_id, processos_selecionados):
     if conn is None:
         return
     cursor = conn.cursor()
-    
+
     # Insere os processos na ordem selecionada
     for ordem, processo_id in enumerate(processos_selecionados, start=1):
         cursor.execute("""
-            INSERT INTO TB006_ClienteProcesso (C001_ID, C002_ID, C006_Ordem)
-            VALUES (?, ?, ?)
-        """, cliente_id, processo_id, ordem)
+            INSERT INTO tb006_clienteprocesso (C001_ID, C002_ID, C006_Ordem)
+            VALUES (%s, %s, %s)
+        """, (cliente_id, processo_id, ordem))
     
     conn.commit()
     conn.close()
     messagebox.showinfo("Sucesso", "Processos adicionados com sucesso!")
 
-# Tela de adicionar processos a um cliente
+import tkinter as tk
+from tkinter import ttk, messagebox
+
 def tela_adicionar_processos():
     root = tk.Tk()
     root.title("Adicionar Processos a um Cliente")
@@ -82,7 +86,7 @@ def tela_adicionar_processos():
     # Centraliza a janela
     root.geometry(f"{largura_janela_cliente}x{altura_janela_cliente}+{pos_x_cliente}+{pos_y_cliente}")
 
-    # 1. Listar os clientes em um Combobox
+    # 1. Listar os clientes em um Combobox (somente leitura)
     clientes = listar_clientes()
     cliente_names = [cliente[1] for cliente in clientes]
     cliente_ids = {cliente[1]: cliente[0] for cliente in clientes}
@@ -90,7 +94,7 @@ def tela_adicionar_processos():
     label_cliente = tk.Label(root, text="Selecione um Cliente:")
     label_cliente.pack(pady=10)
 
-    combobox_cliente = ttk.Combobox(root, values=cliente_names)
+    combobox_cliente = ttk.Combobox(root, values=cliente_names, state="readonly")
     combobox_cliente.pack(pady=10)
 
     # 2. Listar os processos em uma Listbox com múltiplas seleções
@@ -126,14 +130,16 @@ def tela_adicionar_processos():
 
         # Fechar a janela atual
         root.destroy()
-    
+
         # Voltar para a tela principal
-        main_interface() 
+        main_interface()
 
     btn_adicionar = tk.Button(root, text="Adicionar Processos", command=adicionar, width=20)
     btn_adicionar.pack(pady=20)
 
     root.mainloop()
+  
+
 
 # Função principal
 def main_interface():

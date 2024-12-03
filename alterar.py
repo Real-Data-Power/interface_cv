@@ -25,7 +25,8 @@ def tela_alterar_dados():
 
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'")
+            cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME LIKE 'tb%'")
+
             tabelas = [row[0] for row in cursor.fetchall()]
             conn.close()
 
@@ -72,38 +73,46 @@ def tela_alterar_dados():
             messagebox.showerror("Erro", f"Erro ao carregar dados: {e}")
             conn.close()
 
-
     def salvar_alteracoes():
         if not messagebox.askyesno("Confirmação", "Tem certeza de que deseja salvar as alterações?"):
             return
-
+    
         if not dados_editados:
             messagebox.showinfo("Aviso", "Nenhuma alteração realizada.")
             return
-
+    
         try:
             conn = conectar_banco()
             if conn is None:
                 return
-
+    
             cursor = conn.cursor()
             tabela = tabela_selecionada.get()
-
+    
             for item_id, novo_valor in dados_editados.items():
-                set_clauses = ", ".join(
-                    f"{col} = ?" for col in colunas_atuais if col != colunas_atuais[0]  # Ignorar o ID principal
-                )
-                query = f"UPDATE {tabela} SET {set_clauses} WHERE {colunas_atuais[0]} = ?"
-                cursor.execute(query, *novo_valor[1:], item_id)
-
+                # Atualiza cada linha, ignorando a primeira coluna que é o ID
+                set_clauses = ", ".join(f"{col} = %s" for col in colunas_atuais[1:])  # Ignorar a coluna de ID
+                query = f"UPDATE {tabela} SET {set_clauses} WHERE {colunas_atuais[0]} = %s"
+    
+                # Passar os parâmetros corretamente como uma tupla
+                parametros = tuple(novo_valor[1:]) + (item_id,)  # Adiciona item_id no final da lista de parâmetros
+                print(f"Query: {query}")
+                print(f"Parâmetros: {parametros}")
+    
+                # Garantir que os parâmetros estão sendo passados corretamente
+                cursor.execute(query, parametros)
+    
             conn.commit()
             conn.close()
-
+    
             messagebox.showinfo("Sucesso", "Alterações salvas com sucesso!")
             carregar_dados()
-
+    
         except Exception as e:
+            print(f"Erro ao salvar alterações: {e}")
             messagebox.showerror("Erro", f"Erro ao salvar alterações: {e}")
+
+
 
     def editar_celula(event):
         nonlocal dados_editados
