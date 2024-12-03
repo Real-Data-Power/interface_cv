@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import pymysql
 from adicionar import tela_adicionar_dados
 from alterar import tela_alterar_dados
+from modificar import modificar_processo 
 
 # Funções para interagir com o banco de dados
 def conectar_banco():
@@ -170,14 +171,21 @@ def main_interface():
         root.withdraw()
         tela_adicionar_processos()
 
+    def modificar_processo_cliente():
+        root.withdraw()
+        modificar_processo()
+
     # Botões principais
     btn_alterar = tk.Button(root, text="Alterar Dados", command=alterar_dados, width=20)
     btn_adicionar = tk.Button(root, text="Adicionar Dados", command=adicionar_dados, width=20)
     btn_adicionar_processos = tk.Button(root, text="Adicionar Processos a um Cliente", command=adicionar_processos_cliente, width=30)
+    btn_modificar_processo = tk.Button(root, text="Modificar Processo", command=modificar_processo_cliente, width=30)  # Novo botão
+
 
     btn_alterar.pack(pady=20)
     btn_adicionar.pack(pady=20)
     btn_adicionar_processos.pack(pady=20)
+    btn_modificar_processo.pack(pady=20)
 
     root.mainloop()
 
