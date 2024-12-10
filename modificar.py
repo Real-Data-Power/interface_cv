@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 def modificar_processo():
-    from cv import conectar_banco  # A função de conexão com o banco de dados
+    from cv import conectar_banco
+    from cv import main_interface  # A função de conexão com o banco de dados
     root = tk.Tk()
     root.title("Modificar Processo")
 
@@ -41,123 +42,137 @@ def modificar_processo():
         cursor.execute("""
             SELECT C007_Ordem, C007_TabelaAcao, C007_IdTabela
             FROM tb007_sequenciaacao
-            WHERE C002_ID = %s
+            WHERE C002_ID = ?  -- No SQL Server, usa "?" em vez de %s para parâmetros
             ORDER BY C007_Ordem
         """, (processo_id,))
         etapas = cursor.fetchall()
         conn.close()
         return etapas
 
-    # Função para carregar as ações e tipos de uma tabela (tb003_site ou tb004_erp)
     def carregar_acoes(tipo_tabela, id_tabela):
         conn = conectar_banco()
         if conn is None:
             return []
+
         cursor = conn.cursor()
+
+        # Verificar os valores de tipo_tabela e id_tabela
+        print(f"carregar_acoes: tipo_tabela = {tipo_tabela}, id_tabela = {id_tabela}")
+
         if tipo_tabela == "tb004_erp":
-            cursor.execute("SELECT C004_ACAO, C004_TIPO FROM tb004_erp WHERE C004_ID = %s", (id_tabela,))
+            # Consulta para tabela tb004_erp
+            query = "SELECT C004_ACAO, C004_TIPO FROM tb004_erp WHERE C004_ID = ?"
+            print(f"Executando consulta: {query} com id_tabela = {id_tabela}")
+            cursor.execute(query, (id_tabela,))
         elif tipo_tabela == "tb003_site":
-            cursor.execute("SELECT C003_ACAO, C003_TIPO FROM tb003_site WHERE C003_ID = %s", (id_tabela,))
-        acoes = cursor.fetchall()
+            # Consulta para tabela tb003_site
+            query = "SELECT C003_ACAO, C003_TIPO FROM tb003_site WHERE C003_ID = ?"
+            print(f"Executando consulta: {query} com id_tabela = {id_tabela}")
+            cursor.execute(query, (id_tabela,))
+        else:
+            print(f"Erro: tipo_tabela desconhecido: {tipo_tabela}")
+            return []
+
+        # Tentar pegar os resultados
+        try:
+            acoes = cursor.fetchall()
+            print(f"Resultado da consulta: {acoes}")
+        except Exception as e:
+            print(f"Erro ao executar fetchall: {e}")
+            acoes = []
+
         conn.close()
         return acoes
-    
+
+    # Adicionar nova etapa
     def adicionar_nova_etapa():
         processo_selecionado = combobox_processo.get()
         if not processo_selecionado:
             messagebox.showerror("Erro", "Selecione um processo.")
             return
-    
+
         processo_id = processos_ids.get(processo_selecionado)
         if processo_id is None:
             messagebox.showerror("Erro", "Erro ao encontrar o ID do processo.")
             return
-    
+
         acao = entry_acao_site.get().strip()
         tipo_acao = entry_tipo_acao.get().strip()
         ordem = entry_ordem.get().strip()
-    
+
         if not acao or not tipo_acao or not ordem.isdigit():
             messagebox.showerror("Erro", "Preencha todas as caixas de texto corretamente.")
             return
-    
+
         ordem = int(ordem)
         conn = conectar_banco()
         if conn is None:
             messagebox.showerror("Erro", "Falha ao conectar ao banco de dados.")
             return
-    
+
         cursor = conn.cursor()
         try:
             # Verificar a tabela de ação do processo selecionado
             cursor.execute("""
-                SELECT C007_TabelaAcao
+                SELECT TOP 1 C007_TabelaAcao
                 FROM tb007_sequenciaacao
-                WHERE C002_ID = %s
-                LIMIT 1
+                WHERE C002_ID = ?
             """, (processo_id,))
             resultado = cursor.fetchone()
             if not resultado:
                 messagebox.showerror("Erro", "Tabela de ação não encontrada para o processo.")
                 return
-    
+
             tabela_acao = resultado[0]  # Pode ser "tb003_site" ou "tb004_erp"
-    
+
             # Verificar se a ação e tipo já existem
+            # Inserir na tabela apropriada se não existir
             if tabela_acao == "tb003_site":
-                cursor.execute("""
-                    SELECT C003_ID
-                    FROM tb003_site
-                    WHERE C003_ACAO = %s AND C003_TIPO = %s
-                    LIMIT 1
-                """, (acao, tipo_acao))
+                cursor.execute("INSERT INTO tb003_site (C003_ACAO, C003_TIPO) VALUES (?, ?)", (acao, tipo_acao))
             elif tabela_acao == "tb004_erp":
-                cursor.execute("""
-                    SELECT C004_ID
-                    FROM tb004_erp
-                    WHERE C004_ACAO = %s AND C004_TIPO = %s
-                    LIMIT 1
-                """, (acao, tipo_acao))
+                cursor.execute("INSERT INTO tb004_erp (C004_ACAO, C004_TIPO) VALUES (?, ?)", (acao, tipo_acao))
             else:
                 messagebox.showerror("Erro", f"Tabela de ação desconhecida: {tabela_acao}")
                 return
-    
-            id_tabela_acao = cursor.fetchone()
+
+            id_tabela_acao = cursor.lastrowid
             if id_tabela_acao:
                 id_tabela_acao = id_tabela_acao[0]  # Usar o ID existente
             else:
                 # Inserir na tabela apropriada se não existir
                 if tabela_acao == "tb003_site":
-                    cursor.execute("INSERT INTO tb003_site (C003_ACAO, C003_TIPO) VALUES (%s, %s)", (acao, tipo_acao))
+                    cursor.execute("INSERT INTO tb003_site (C003_ACAO, C003_TIPO) VALUES (?, ?)", (acao, tipo_acao))
                 elif tabela_acao == "tb004_erp":
-                    cursor.execute("INSERT INTO tb004_erp (C004_ACAO, C004_TIPO) VALUES (%s, %s)", (acao, tipo_acao))
-    
-                id_tabela_acao = cursor.lastrowid  # Obter o ID da nova linha inserida
-    
+                    cursor.execute("INSERT INTO tb004_erp (C004_ACAO, C004_TIPO) VALUES (?, ?)", (acao, tipo_acao))
+
+            id_tabela_acao = cursor.fetchone()[0]
+
             # Atualizar C007_Ordem na tb007_sequenciaacao
             cursor.execute("""
                 UPDATE tb007_sequenciaacao
                 SET C007_Ordem = C007_Ordem + 1
-                WHERE C002_ID = %s AND C007_Ordem >= %s
+                WHERE C002_ID = ? AND C007_Ordem >= ?
             """, (processo_id, ordem))
-    
+
             # Inserir nova linha em tb007_sequenciaacao
             cursor.execute("""
                 INSERT INTO tb007_sequenciaacao (C002_ID, C007_Ordem, C007_TabelaAcao, C007_IdTabela)
-                VALUES (%s, %s, %s, %s)
+                VALUES (?, ?, ?, ?)
             """, (processo_id, ordem, tabela_acao, id_tabela_acao))
-    
+
             conn.commit()
-    
+
             # Atualizar o Treeview
             atualizar_treeview(processo_id)
-    
+
             messagebox.showinfo("Sucesso", "Nova etapa adicionada com sucesso!")
         except Exception as e:
             conn.rollback()
+            print("Erro", f"Erro ao adicionar nova etapa: {e}")
             messagebox.showerror("Erro", f"Erro ao adicionar nova etapa: {e}")
         finally:
             conn.close()
+
 
 
     def atualizar_treeview(processo_id):
@@ -195,6 +210,14 @@ def modificar_processo():
             messagebox.showerror("Erro", f"Erro ao atualizar Treeview: {e}")
         finally:
             conn.close()
+
+    def voltar():
+        root.destroy()  # Destrói a janela atual
+        main_interface()  # Chama a função main_interface
+
+    # Botão Voltar
+    btn_voltar = tk.Button(root, text="Voltar", command=voltar)
+    btn_voltar.pack(anchor="nw", padx=10, pady=10)  # Ajuste a posição conforme necessário
 
 
     # Carregar os processos

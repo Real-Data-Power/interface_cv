@@ -1,28 +1,24 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import pymysql
+import pyodbc
+import sys
 from adicionar import tela_adicionar_dados
 from alterar import tela_alterar_dados
-from modificar import modificar_processo 
+from modificar import modificar_processo
 
-# Funções para interagir com o banco de dados
 def conectar_banco():
     # Detalhes da conexão
-    server = '186.250.95.150'  # IP do servidor remoto
-    port = 3306  # Porta do MySQL no servidor
+    server = 'DESKTOP-32TMBU8\\SQLEXPRESS'
     database = 'colabvirtual'
-    username = 'rdp'  # Ajuste de acordo com o seu usuário
-    password = 'Rdp@2024'  # Senha do MySQL
+    username = 'rdp'
+    password = 'rdp'
+    
+    # String de conexão para o SQL Server via ODBC
+    connection_string = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
 
     try:
-        # Criar conexão com o banco de dados MySQL
-        conexao = pymysql.connect(
-            host=server,
-            port=port,
-            user=username,
-            password=password,
-            database=database
-        )
+        # Criar a conexão com o banco de dados
+        conexao = pyodbc.connect(connection_string)
         return conexao
     except Exception as e:
         messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao banco de dados: {e}")
@@ -58,19 +54,23 @@ def adicionar_processos(cliente_id, processos_selecionados):
     for ordem, processo_id in enumerate(processos_selecionados, start=1):
         cursor.execute("""
             INSERT INTO tb006_clienteprocesso (C001_ID, C002_ID, C006_Ordem)
-            VALUES (%s, %s, %s)
+            VALUES (?, ?, ?)
         """, (cliente_id, processo_id, ordem))
     
     conn.commit()
     conn.close()
     messagebox.showinfo("Sucesso", "Processos adicionados com sucesso!")
 
-import tkinter as tk
-from tkinter import ttk, messagebox
-
 def tela_adicionar_processos():
     root = tk.Tk()
     root.title("Adicionar Processos a um Cliente")
+
+    def voltar():
+        root.destroy()  # Destrói a janela atual
+        main_interface()  # Chama a função main_interface
+
+    btn_voltar = tk.Button(root, text="Voltar", command=voltar)
+    btn_voltar.pack(anchor="nw", padx=10, pady=10) 
 
     # Obtém as dimensões da tela
     largura_tela = root.winfo_screenwidth()
@@ -78,7 +78,7 @@ def tela_adicionar_processos():
 
     # Define as dimensões da janela
     largura_janela_cliente = 600
-    altura_janela_cliente = 400
+    altura_janela_cliente = 425
 
     # Calcula a posição para centralizar a janela
     pos_x_cliente = (largura_tela - largura_janela_cliente) // 2
@@ -139,8 +139,6 @@ def tela_adicionar_processos():
     btn_adicionar.pack(pady=20)
 
     root.mainloop()
-  
-
 
 # Função principal
 def main_interface():
@@ -152,7 +150,7 @@ def main_interface():
     altura_tela = root.winfo_screenheight()
 
     largura_janela_cliente = 400
-    altura_janela_cliente = 300
+    altura_janela_cliente = 350
 
     pos_x_cliente = (largura_tela - largura_janela_cliente) // 2
     pos_y_cliente = (altura_tela - altura_janela_cliente) // 2
@@ -175,17 +173,24 @@ def main_interface():
         root.withdraw()
         modificar_processo()
 
+    # Função para sair
+    def sair():
+        root.quit()  # Encerra o loop principal do Tkinter, fechando a aplicação
+        root.destroy()  # Destrói a janela do Tkinter
+        sys.exit() # Força o encerramento do programa e libera o terminal
+
     # Botões principais
     btn_alterar = tk.Button(root, text="Alterar Dados", command=alterar_dados, width=20)
     btn_adicionar = tk.Button(root, text="Adicionar Dados", command=adicionar_dados, width=20)
     btn_adicionar_processos = tk.Button(root, text="Adicionar Processos a um Cliente", command=adicionar_processos_cliente, width=30)
     btn_modificar_processo = tk.Button(root, text="Modificar Processo", command=modificar_processo_cliente, width=30)  # Novo botão
-
+    btn_sair = tk.Button(root, text="Sair", command=sair, width=20)
 
     btn_alterar.pack(pady=20)
     btn_adicionar.pack(pady=20)
     btn_adicionar_processos.pack(pady=20)
     btn_modificar_processo.pack(pady=20)
+    btn_sair.pack(pady=20)
 
     root.mainloop()
 

@@ -2,8 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 def tela_alterar_dados():
-    from cv import main_interface
-    from cv import conectar_banco
+    from cv import main_interface, conectar_banco
     janela = tk.Toplevel()
     janela.title("Alterar Dados")
     janela.geometry("900x600")
@@ -25,9 +24,12 @@ def tela_alterar_dados():
 
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME LIKE 'tb%'")
-
-            tabelas = [row[0] for row in cursor.fetchall()]
+            cursor.execute("""
+                SELECT TABLE_SCHEMA, TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_TYPE = 'BASE TABLE' 
+                AND TABLE_NAME LIKE 'tb%'""")
+            tabelas = [row[1] for row in cursor.fetchall()]
             conn.close()
 
             # Remover tabelas indesejadas
@@ -50,8 +52,11 @@ def tela_alterar_dados():
         try:
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM {tabela}")
-            colunas_atuais = [desc[0] for desc in cursor.description]
-            dados_originais = cursor.fetchall()
+
+            # Recupera os nomes das colunas
+            colunas_atuais = [desc[0] for desc in cursor.description]  # Nome das colunas
+            dados_originais = cursor.fetchall()  # Dados retornados pela consulta
+
             dados_editados = {}
             conn.close()
 
@@ -65,7 +70,6 @@ def tela_alterar_dados():
 
             # Inserir dados formatados
             for row in dados_originais:
-                # Converte os valores para strings limpas
                 row_formatada = [str(valor) if valor is not None else "" for valor in row]
                 tree.insert("", "end", values=row_formatada)
 
@@ -76,43 +80,38 @@ def tela_alterar_dados():
     def salvar_alteracoes():
         if not messagebox.askyesno("Confirmação", "Tem certeza de que deseja salvar as alterações?"):
             return
-    
+
         if not dados_editados:
             messagebox.showinfo("Aviso", "Nenhuma alteração realizada.")
             return
-    
+
         try:
             conn = conectar_banco()
             if conn is None:
                 return
-    
-            cursor = conn.cursor()
+
             tabela = tabela_selecionada.get()
-    
+
+            cursor = conn.cursor()
+
             for item_id, novo_valor in dados_editados.items():
-                # Atualiza cada linha, ignorando a primeira coluna que é o ID
-                set_clauses = ", ".join(f"{col} = %s" for col in colunas_atuais[1:])  # Ignorar a coluna de ID
-                query = f"UPDATE {tabela} SET {set_clauses} WHERE {colunas_atuais[0]} = %s"
-    
-                # Passar os parâmetros corretamente como uma tupla
-                parametros = tuple(novo_valor[1:]) + (item_id,)  # Adiciona item_id no final da lista de parâmetros
-                print(f"Query: {query}")
-                print(f"Parâmetros: {parametros}")
-    
-                # Garantir que os parâmetros estão sendo passados corretamente
+                set_clauses = ", ".join(f"{col} = ?" for col in colunas_atuais[1:])  # Ignorar a coluna de ID
+                query = f"UPDATE {tabela} SET {set_clauses} WHERE {colunas_atuais[0]} = ?"
+
+                # Atribuindo os parâmetros como uma lista
+                parametros = [valor for valor in novo_valor[1:]] + [item_id]  # Excluindo o primeiro valor (ID)
+
                 cursor.execute(query, parametros)
-    
+
             conn.commit()
             conn.close()
-    
+
             messagebox.showinfo("Sucesso", "Alterações salvas com sucesso!")
             carregar_dados()
-    
+
         except Exception as e:
-            print(f"Erro ao salvar alterações: {e}")
             messagebox.showerror("Erro", f"Erro ao salvar alterações: {e}")
-
-
+            conn.close()
 
     def editar_celula(event):
         nonlocal dados_editados
