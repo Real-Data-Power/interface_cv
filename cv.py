@@ -6,6 +6,7 @@ from adicionar import tela_adicionar_dados
 from alterar import tela_alterar_dados
 from modificar import modificar_processo
 
+
 def conectar_banco():
     # Detalhes da conexão
     server = 'DESKTOP-32TMBU8\\SQLEXPRESS'

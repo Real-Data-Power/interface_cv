@@ -56,18 +56,13 @@ def modificar_processo():
 
         cursor = conn.cursor()
 
-        # Verificar os valores de tipo_tabela e id_tabela
-        print(f"carregar_acoes: tipo_tabela = {tipo_tabela}, id_tabela = {id_tabela}")
-
         if tipo_tabela == "tb004_erp":
             # Consulta para tabela tb004_erp
             query = "SELECT C004_ACAO, C004_TIPO FROM tb004_erp WHERE C004_ID = ?"
-            print(f"Executando consulta: {query} com id_tabela = {id_tabela}")
             cursor.execute(query, (id_tabela,))
         elif tipo_tabela == "tb003_site":
             # Consulta para tabela tb003_site
             query = "SELECT C003_ACAO, C003_TIPO FROM tb003_site WHERE C003_ID = ?"
-            print(f"Executando consulta: {query} com id_tabela = {id_tabela}")
             cursor.execute(query, (id_tabela,))
         else:
             print(f"Erro: tipo_tabela desconhecido: {tipo_tabela}")
@@ -84,7 +79,6 @@ def modificar_processo():
         conn.close()
         return acoes
 
-    # Adicionar nova etapa
     def adicionar_nova_etapa():
         processo_selecionado = combobox_processo.get()
         if not processo_selecionado:
@@ -119,33 +113,37 @@ def modificar_processo():
                 WHERE C002_ID = ?
             """, (processo_id,))
             resultado = cursor.fetchone()
+            print(f"Resultado: {resultado}")
             if not resultado:
                 messagebox.showerror("Erro", "Tabela de ação não encontrada para o processo.")
                 return
 
             tabela_acao = resultado[0]  # Pode ser "tb003_site" ou "tb004_erp"
 
-            # Verificar se a ação e tipo já existem
-            # Inserir na tabela apropriada se não existir
+            # Inserir na tabela apropriada e obter o ID da nova ação
             if tabela_acao == "tb003_site":
                 cursor.execute("INSERT INTO tb003_site (C003_ACAO, C003_TIPO) VALUES (?, ?)", (acao, tipo_acao))
+                conn.commit()  # Garantir que a inserção seja persistida
+                cursor.execute("SELECT * FROM tb003_site WHERE C003_ACAO = ? AND C003_TIPO = ?", (acao, tipo_acao))
+                id_tabela_acao = cursor.fetchone()[0]
+                print(f"Resultado da inserção na tb003_site: {id_tabela_acao}")
             elif tabela_acao == "tb004_erp":
                 cursor.execute("INSERT INTO tb004_erp (C004_ACAO, C004_TIPO) VALUES (?, ?)", (acao, tipo_acao))
+                conn.commit()  # Garantir que a inserção seja persistida
+                cursor.execute("SELECT * FROM tb004_erp WHERE C004_ACAO = ? AND C004_TIPO = ?", (acao, tipo_acao))
+                id_tabela_acao = cursor.fetchone()[0]
+                print(f"Resultado da inserção na tb004_erp: {id_tabela_acao}")
             else:
-                messagebox.showerror("Erro", f"Tabela de ação desconhecida: {tabela_acao}")
+                messagebox.showerror("Erro", f"Tabela de ação desconhecida: {resultado}")
                 return
 
-            id_tabela_acao = cursor.lastrowid
-            if id_tabela_acao:
-                id_tabela_acao = id_tabela_acao[0]  # Usar o ID existente
-            else:
-                # Inserir na tabela apropriada se não existir
-                if tabela_acao == "tb003_site":
-                    cursor.execute("INSERT INTO tb003_site (C003_ACAO, C003_TIPO) VALUES (?, ?)", (acao, tipo_acao))
-                elif tabela_acao == "tb004_erp":
-                    cursor.execute("INSERT INTO tb004_erp (C004_ACAO, C004_TIPO) VALUES (?, ?)", (acao, tipo_acao))
+            # Verifique se o ID foi recuperado corretamente
+            print(f"ID Ação Inserida: {id_tabela_acao}")
 
-            id_tabela_acao = cursor.fetchone()[0]
+            # Verificar se o ID foi gerado corretamente
+            if id_tabela_acao is None:
+                messagebox.showerror("Erro", "Erro ao obter o ID da tabela de ação.")
+                return
 
             # Atualizar C007_Ordem na tb007_sequenciaacao
             cursor.execute("""
@@ -173,43 +171,45 @@ def modificar_processo():
         finally:
             conn.close()
 
-
-
     def atualizar_treeview(processo_id):
         # Limpar o Treeview existente
         for item in treeview.get_children():
             treeview.delete(item)
-
+    
         conn = conectar_banco()
         if conn is None:
             messagebox.showerror("Erro", "Falha ao conectar ao banco de dados para atualizar o Treeview.")
             return
-
+    
         cursor = conn.cursor()
         try:
+            # Buscar as etapas do processo
             cursor.execute("""
                 SELECT C007_Ordem, C007_TabelaAcao, C007_IdTabela
                 FROM tb007_sequenciaacao
-                WHERE C002_ID = %s
+                WHERE C002_ID = ?
                 ORDER BY C007_Ordem
             """, (processo_id,))
-            etapas = cursor.fetchall()
-
+    
+            etapas = cursor.fetchall()  # Buscar todas as etapas
+    
+            if not etapas:
+                messagebox.showerror("Erro", "Nenhuma etapa encontrada para o processo selecionado.")
+                return
+    
             for ordem, tabela_acao, id_tabela in etapas:
-                if tabela_acao == "tb003_site":
-                    cursor.execute("SELECT C003_ACAO, C003_TIPO FROM tb003_site WHERE C003_ID = %s", (id_tabela,))
-                elif tabela_acao == "tb004_erp":
-                    cursor.execute("SELECT C004_ACAO, C004_TIPO FROM tb004_erp WHERE C004_ID = %s", (id_tabela,))
-                else:
-                    continue
-                acoes = cursor.fetchone()
-                if acoes:
-                    acao, tipo_acao = acoes
+                # Carregar as ações da tabela de ação correspondente
+                acoes = carregar_acoes(tabela_acao, id_tabela)
+    
+                for acao, tipo_acao in acoes:
+                    # Inserir cada ação no Treeview
                     treeview.insert("", "end", values=(ordem, acao, tipo_acao))
+    
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao atualizar Treeview: {e}")
         finally:
             conn.close()
+    
 
     def voltar():
         root.destroy()  # Destrói a janela atual
